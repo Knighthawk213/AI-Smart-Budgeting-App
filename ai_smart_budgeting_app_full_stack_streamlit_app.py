@@ -1,7 +1,7 @@
+
 # =============================================
-# AI-DRIVEN SMART BUDGETING APP — ULTIMATE VERSION
-# Backend: ML + Clustering + Recommendations
-# Frontend: Streamlit + Plotly (Production Ready)
+# AI-DRIVEN SMART BUDGETING APP — FINAL VERSION
+# Supports: URL Params + Auto Prediction + Mode Control
 # =============================================
 
 import streamlit as st
@@ -25,18 +25,12 @@ except:
     xgb_available = False
 
 # =============================================
-# STREAMLIT CONFIG
+# CONFIG
 # =============================================
 st.set_page_config(page_title="AI Smart Budgeting App", layout="wide")
 
-st.markdown("""
-<style>
-body { background-color: #0e1117; }
-</style>
-""", unsafe_allow_html=True)
-
 # =============================================
-# LOAD & PREP DATA
+# LOAD DATA
 # =============================================
 @st.cache_data
 def load_data():
@@ -100,7 +94,7 @@ def train_models(df):
     return results_df, best_model, scaler
 
 # =============================================
-# AI RECOMMENDATIONS
+# RECOMMENDATIONS
 # =============================================
 def generate_recommendations(user_df):
     recs = []
@@ -121,110 +115,129 @@ def generate_recommendations(user_df):
     return recs
 
 # =============================================
-# MAIN APP
+# LOAD + TRAIN
 # =============================================
-st.title("💰 AI-Driven Smart Budgeting App")
-st.markdown("End-to-end AI system for savings prediction, insights, and recommendations")
-
 df = load_data()
 results_df, best_model, scaler = train_models(df)
 
 # =============================================
-# USER SEGMENTATION (CLUSTERING)
+# CLUSTERING
 # =============================================
 cluster_features = df[["Income","Total_Potential_Savings","Disposable_Income","Groceries","Eating_Out"]]
 kmeans = KMeans(n_clusters=3, random_state=42)
 df["User_Type"] = kmeans.fit_predict(cluster_features)
 
 # =============================================
-# TABS
+# URL PARAMS
 # =============================================
-tab1, tab2, tab3 = st.tabs(["📊 Data Explorer", "🤖 Model Comparison", "🔮 Smart Prediction"])
+params = st.query_params
+mode = params.get("mode", "full")       # full / prediction
+auto_run = params.get("auto", "false") == "true"
 
-# ---------------------------------------------
-# TAB 1: DATA EXPLORER
-# ---------------------------------------------
-with tab1:
-    st.subheader("Dataset Overview")
-    st.dataframe(df.head())
-
-    col = st.selectbox("Select feature", df.select_dtypes(include=np.number).columns)
-    fig = px.histogram(df, x=col, nbins=40, title=f"Distribution of {col}")
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("User Segmentation")
-    fig2 = px.scatter(
-        df,
-        x="Income",
-        y="Total_Potential_Savings",
-        color="User_Type",
-        title="Income vs Savings Clusters"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-# ---------------------------------------------
-# TAB 2: MODEL COMPARISON
-# ---------------------------------------------
-with tab2:
-    st.subheader("ML Model Performance")
-    st.dataframe(results_df)
-
-    fig = px.bar(results_df, x="Model", y="R2", color="Model", title="R² Score Comparison")
-    st.plotly_chart(fig, use_container_width=True)
-
-    fig2 = go.Figure()
-    fig2.add_bar(name="MAE", x=results_df["Model"], y=results_df["MAE"])
-    fig2.add_bar(name="RMSE", x=results_df["Model"], y=results_df["RMSE"])
-    fig2.update_layout(barmode='group', title="Error Metrics")
-    st.plotly_chart(fig2, use_container_width=True)
-
-# ---------------------------------------------
-# TAB 3: SMART PREDICTION
-# ---------------------------------------------
-with tab3:
-    st.subheader("Predict & Optimize Savings")
-
+# =============================================
+# INPUT HANDLING (URL + DEFAULTS)
+# =============================================
+def get_user_input():
     user_input = {}
     feature_cols = df.drop(["Total_Potential_Savings","User_Type"], axis=1).columns
+
     for col in feature_cols:
-        user_input[col] = st.number_input(col, value=float(df[col].mean()))
+        default_val = float(df[col].mean())
 
-    if st.button("Predict Savings"):
-        user_df = pd.DataFrame([user_input])
-        user_scaled = scaler.transform(user_df)
-        prediction = best_model.predict(user_scaled)[0]
+        if col in params:
+            try:
+                default_val = float(params[col])
+            except:
+                pass
 
-        st.success(f"💸 Estimated Monthly Savings: ₹ {prediction:,.2f}")
+        user_input[col] = st.number_input(col, value=default_val)
 
-        # Financial Health Score
-        score = min(100, (prediction / user_input.get("Income",1)) * 200)
-        st.metric("💎 Financial Health Score", f"{score:.1f}/100")
+    return user_input
 
-        # Radar Chart
-        cats = ["Groceries","Transport","Eating_Out","Entertainment","Utilities","Healthcare","Miscellaneous"]
-        vals = [user_input.get(c,0) for c in cats]
+# =============================================
+# PREDICTION UI (REUSABLE)
+# =============================================
+def run_prediction(user_input):
+    user_df = pd.DataFrame([user_input])
+    user_scaled = scaler.transform(user_df)
+    prediction = best_model.predict(user_scaled)[0]
 
-        radar = go.Figure(go.Scatterpolar(r=vals, theta=cats, fill='toself'))
-        radar.update_layout(title="Expense Distribution")
-        st.plotly_chart(radar, use_container_width=True)
+    st.success(f"💸 Estimated Monthly Savings: ₹ {prediction:,.2f}")
 
-        # AI Recommendations
-        st.subheader("🧠 AI Budget Recommendations")
-        recs = generate_recommendations(user_df)
-        for r in recs:
-            st.markdown(r)
+    score = min(100, (prediction / user_input.get("Income",1)) * 200)
+    st.metric("💎 Financial Health Score", f"{score:.1f}/100")
 
-        # Gauge
-        gauge = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=prediction,
-            title={'text': "Savings Potential"},
-            gauge={'axis': {'range': [0, df['Total_Potential_Savings'].max()]}}
-        ))
-        st.plotly_chart(gauge, use_container_width=True)
+    cats = ["Groceries","Transport","Eating_Out","Entertainment","Utilities","Healthcare","Miscellaneous"]
+    vals = [user_input.get(c,0) for c in cats]
+
+    radar = go.Figure(go.Scatterpolar(r=vals, theta=cats, fill='toself'))
+    radar.update_layout(title="Expense Distribution")
+    st.plotly_chart(radar, use_container_width=True)
+
+    st.subheader("🧠 AI Budget Recommendations")
+    recs = generate_recommendations(user_df)
+    for r in recs:
+        st.markdown(r)
+
+    gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=prediction,
+        title={'text': "Savings Potential"},
+        gauge={'axis': {'range': [0, df['Total_Potential_Savings'].max()]}}
+    ))
+    st.plotly_chart(gauge, use_container_width=True)
+
+# =============================================
+# MODE: ONLY PREDICTION (FOR FLUTTER)
+# =============================================
+if mode == "prediction":
+    st.title("🔮 Smart Prediction")
+
+    user_input = get_user_input()
+
+    if st.button("Predict Savings") or auto_run:
+        run_prediction(user_input)
+
+# =============================================
+# FULL APP MODE (NORMAL)
+# =============================================
+else:
+    st.title("💰 AI-Driven Smart Budgeting App")
+
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Data Explorer",
+        "🤖 Model Comparison",
+        "🔮 Smart Prediction"
+    ])
+
+    # TAB 1
+    with tab1:
+        st.subheader("Dataset Overview")
+        st.dataframe(df.head())
+
+        col = st.selectbox("Select feature", df.select_dtypes(include=np.number).columns)
+        fig = px.histogram(df, x=col, nbins=40)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # TAB 2
+    with tab2:
+        st.subheader("ML Model Performance")
+        st.dataframe(results_df)
+
+        fig = px.bar(results_df, x="Model", y="R2", color="Model")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # TAB 3
+    with tab3:
+        st.subheader("Predict & Optimize Savings")
+
+        user_input = get_user_input()
+
+        if st.button("Predict Savings"):
+            run_prediction(user_input)
 
 # =============================================
 # FOOTER
 # =============================================
 st.markdown("---")
-st.markdown("🚀 Deployed AI Smart Budgeting System | ML + Visualization + Intelligence")
+st.markdown("🚀 AI Smart Budgeting System | Flutter + Streamlit + ML")
