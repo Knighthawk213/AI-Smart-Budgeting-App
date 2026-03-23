@@ -204,37 +204,15 @@ if mode == "prediction":
 else:
     st.title("💰 AI-Driven Smart Budgeting App")
 
-    tab1, tab2, tab3 = st.tabs([
-        "📊 Data Explorer",
-        "🤖 Model Comparison",
+    tab1 = st.tabs([
         "🔮 Smart Prediction"
     ])
 
     # TAB 1
     with tab1:
-        st.subheader("Dataset Overview")
-        st.dataframe(df.head())
-
-        col = st.selectbox("Select feature", df.select_dtypes(include=np.number).columns)
-        fig = px.histogram(df, x=col, nbins=40)
-        st.plotly_chart(fig, use_container_width=True)
-
-    # TAB 2
-    with tab2:
-        st.subheader("ML Model Performance")
-        st.dataframe(results_df)
-
-        fig = px.bar(results_df, x="Model", y="R2", color="Model")
-        st.plotly_chart(fig, use_container_width=True)
-
-    # TAB 3
-    with tab3:
         st.subheader("Predict & Optimize Savings")
 
-        user_input = get_user_input()
-
-        if st.button("Predict Savings"):
-            run_prediction(user_input)
+        run_prediction(get_user_input())
 
 # =============================================
 # FOOTER
