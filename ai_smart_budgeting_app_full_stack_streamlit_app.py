@@ -177,7 +177,10 @@ expense_cols = [
     "Entertainment","Utilities","Healthcare","Miscellaneous"
 ]
 
-total_expenses = sum([user_input.get(c, 0) for c in expense_cols])
+total_expenses = sum(
+    float(user_input.get(c, 0) or 0)
+    for c in expense_cols
+)
 
 # Avoid division issues
 if income <= 0:
