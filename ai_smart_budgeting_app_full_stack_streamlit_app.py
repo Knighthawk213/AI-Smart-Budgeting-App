@@ -170,8 +170,30 @@ def run_prediction(user_input):
 
     st.success(f"💸 Estimated Monthly Savings: ₹ {prediction:,.2f}")
 
-    score = min(100, (prediction / user_input.get("Income",1)) * 200)
-    st.metric("💎 Financial Health Score", f"{score:.1f}/100")
+   income = user_input.get("Income", 0)
+
+expense_cols = [
+    "Groceries","Transport","Eating_Out",
+    "Entertainment","Utilities","Healthcare","Miscellaneous"
+]
+
+total_expenses = sum([user_input.get(c, 0) for c in expense_cols])
+
+# Avoid division issues
+if income <= 0:
+    score = 0
+else:
+    savings = income - total_expenses
+    savings_ratio = savings / income
+
+    if savings < 0:
+        # Heavy penalty for overspending
+        score = max(0, 50 + (savings_ratio * 100))
+    else:
+        # Reward saving behavior
+        score = min(100, savings_ratio * 100 + 50)
+
+st.metric("💎 Financial Health Score", f"{score:.1f}/100")
 
     # 🔥 Only show heavy UI in FULL mode
     if mode != "prediction":
